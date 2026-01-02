@@ -26,6 +26,27 @@ func (f *FiberFeatureFlag) ToggleFeatureFlag(ctx context.Context, key string) er
 	return f.provider.SetFeatureFlagStatus(ctx, key, !f.provider.GetFeatureFlagStatus(ctx, key))
 }
 
+func (f *FiberFeatureFlag) GetAllFeatureFlags(ctx context.Context) (map[string]bool, error) {
+	return f.provider.GetListOfFeatureFlags(ctx)
+}
+
+func (f *FiberFeatureFlag) PopulateFeatureFlag(ctx context.Context, keys []string) error {
+	existsKeys, err := f.provider.GetListOfFeatureFlags(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, key := range keys {
+		if _, ok := existsKeys[key]; !ok {
+			if err = f.provider.SetFeatureFlagStatus(ctx, key, false); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func (f *FiberFeatureFlag) GetHandler(c *fiber.Ctx) error {
 	if c.Get(fiber.HeaderAccept) == fiber.MIMEApplicationJSON {
 		if c.Method() == fiber.MethodGet {
@@ -34,11 +55,11 @@ func (f *FiberFeatureFlag) GetHandler(c *fiber.Ctx) error {
 			if key != "" {
 				status := f.provider.GetFeatureFlagStatus(c.Context(), key)
 				return c.Status(fiber.StatusOK).JSON(fiber.Map{
-					"key": key,
+					"key":     key,
 					"enabled": status,
 				})
 			}
-			
+
 			// Return all feature flags
 			featureFlags, err := f.provider.GetListOfFeatureFlags(c.Context())
 			if err != nil {
@@ -51,20 +72,20 @@ func (f *FiberFeatureFlag) GetHandler(c *fiber.Ctx) error {
 			var request struct {
 				Key string `json:"key"`
 			}
-			
+
 			if err := c.BodyParser(&request); err != nil {
 				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 			}
-			
+
 			if request.Key == "" {
 				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Key is required"})
 			}
-			
+
 			err := f.provider.SetFeatureFlagStatus(c.Context(), request.Key, true)
 			if err != nil {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 			}
-			
+
 			return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Feature flag enabled", "key": request.Key})
 		}
 
@@ -72,20 +93,20 @@ func (f *FiberFeatureFlag) GetHandler(c *fiber.Ctx) error {
 			var request struct {
 				Key string `json:"key"`
 			}
-			
+
 			if err := c.BodyParser(&request); err != nil {
 				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 			}
-			
+
 			if request.Key == "" {
 				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Key is required"})
 			}
-			
+
 			err := f.provider.SetFeatureFlagStatus(c.Context(), request.Key, false)
 			if err != nil {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 			}
-			
+
 			return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Feature flag disabled", "key": request.Key})
 		}
 
@@ -93,25 +114,25 @@ func (f *FiberFeatureFlag) GetHandler(c *fiber.Ctx) error {
 			var request struct {
 				Key string `json:"key"`
 			}
-			
+
 			if err := c.BodyParser(&request); err != nil {
 				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 			}
-			
+
 			if request.Key == "" {
 				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Key is required"})
 			}
-			
+
 			err := f.ToggleFeatureFlag(c.Context(), request.Key)
 			if err != nil {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 			}
-			
+
 			// Get the updated status
 			status := f.provider.GetFeatureFlagStatus(c.Context(), request.Key)
 			return c.Status(fiber.StatusOK).JSON(fiber.Map{
-				"message": "Feature flag toggled", 
-				"key": request.Key,
+				"message": "Feature flag toggled",
+				"key":     request.Key,
 				"enabled": status,
 			})
 		}
